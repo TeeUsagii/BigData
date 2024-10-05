@@ -1,0 +1,61 @@
+import java.io.IOException;
+import java.util.StringTokenizer;
+
+import org.apache.hadoop.conf.Configuration;
+import org.apache.hadoop.fs.Path;
+import org.apache.hadoop.io.IntWritable;
+import org.apache.hadoop.io.Text;
+import org.apache.hadoop.mapreduce.Job;
+import org.apache.hadoop.mapreduce.Mapper;
+import org.apache.hadoop.mapreduce.Reducer;
+import org.apache.hadoop.mapreduce.lib.input.FileInputFormat;
+import org.apache.hadoop.mapreduce.lib.output.FileOutputFormat;
+
+public class FilterAverage {
+
+  public static class TokenizerMapper
+       extends Mapper<Object, Text, Text, IntWritable>{
+
+    private Text year = new Text();
+
+    public void map(Object key, Text value, Context context
+                    ) throws IOException, InterruptedException {
+      // Tách các giá trị trong dòng theo khoảng trắng
+      StringTokenizer itr = new StringTokenizer(value.toString());
+      int count = itr.countTokens();
+
+      // Nếu có ít nhất 2 giá trị (năm và giá trị trung bình)
+      if (count >= 2) {
+        String[] values = new String[count];
+        int i = 0;
+        while (itr.hasMoreTokens()) {
+          values[i] = itr.nextToken();
+          i++;
+        }
+
+        // Giá trị năm là phần tử đầu tiên
+        String yearString = values[0];
+        // Giá trị trung bình là phần tử cuối cùng
+        int average = Integer.parseInt(values[count - 1]);
+
+        // Nếu giá trị trung bình > 30, ghi lại năm
+        if (average > 30) {
+          year.set(yearString);
+          context.write(year, new IntWritable(average));
+        }
+      }
+    }
+  }
+
+  public static void main(String[] args) throws Exception {
+    Configuration conf = new Configuration();
+    Job job = Job.getInstance(conf, "filter average");
+    job.setJarByClass(FilterAverage.class);
+    job.setMapperClass(TokenizerMapper.class);
+    job.setOutputKeyClass(Text.class);
+    job.setOutputValueClass(IntWritable.class);
+    FileInputFormat.addInputPath(job, new Path(args[0]));
+    FileOutputFormat.setOutputPath(job, new Path(args[1]));
+    System.exit(job.waitForCompletion(true) ? 0 : 1);
+  }
+}
